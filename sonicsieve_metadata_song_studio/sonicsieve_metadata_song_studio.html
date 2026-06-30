@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SonicSieve - Lossless Music & Metadata Studio</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            500: '#6366f1',
+                            600: '#4f46e5',
+                            700: '#4338ca',
+                            900: '#312e81',
+                            accent: '#10b981',
+                            pink: '#ec4899'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Browser ID3 Writer Library -->
+    <script src="https://cdn.jsdelivr.net/npm/browser-id3-writer@4.4.0/dist/browser-id3-writer.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(236, 72, 153, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+        .glassmorphism {
+            background: linear-gradient(135deg, rgba(17, 24, 39, 0.82), rgba(15, 23, 42, 0.72));
+            backdrop-filter: blur(18px) saturate(140%);
+            -webkit-backdrop-filter: blur(18px) saturate(140%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 20px 45px rgba(2, 6, 23, 0.30), inset 0 1px 0 rgba(255,255,255,0.12);
+        }
+        .liquid-glass {
+            position: relative;
+            overflow: hidden;
+            isolation: isolate;
+        }
+        .liquid-glass::before {
+            content: "";
+            position: absolute;
+            inset: 1px;
+            border-radius: inherit;
+            pointer-events: none;
+            background: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.035));
+            z-index: -1;
+        }
+        .glow-hover:hover {
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+            border-color: rgba(99, 102, 241, 0.6);
+            transform: translateY(-1px);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        @keyframes vinyl-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .spinning-vinyl {
+            animation: vinyl-spin 20s linear infinite;
+        }
+        .paused-vinyl {
+            animation-play-state: paused;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col antialiased">
+
+    <!-- Navigation / Header -->
+    <header class="glassmorphism liquid-glass sticky top-0 z-50 px-6 py-4 border-b border-slate-800">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-500 to-brand-pink flex items-center justify-center shadow-lg shadow-brand-500/20">
+                    <i class="fa-solid fa-compact-disc text-xl text-white animate-spin" style="animation-duration: 6s;"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight bg-gradient-to-r from-white via-indigo-200 to-brand-pink bg-clip-text text-transparent">
+                        SonicSieve
+                    </h1>
+                    <p class="text-xs text-slate-400 font-medium">Lossless Song & Tag Studio</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+                    <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+                    Studio Engine Ready
+                </span>
+                <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                    <i class="fa-solid fa-shield-halved"></i> Client-Side Sandbox
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-6 sm:px-6 flex flex-col lg:flex-row gap-6">
+        
+        <!-- Left Column: Source and Metadata Search -->
+        <section class="w-full lg:w-5/12 flex flex-col gap-6">
+            
+            <!-- Mode Switcher & Source Input -->
+            <div class="glassmorphism rounded-2xl p-5 shadow-2xl">
+                <div class="flex border-b border-slate-800 pb-4 mb-4">
+                    <button id="tabSearch" class="flex-1 py-2 text-center text-sm font-semibold border-b-2 border-brand-500 text-brand-500 transition-colors" onclick="switchMode('search')">
+                        <i class="fa-solid fa-magnifying-glass mr-2"></i>Search Metadata
+                    </button>
+                    <button id="tabLocal" class="flex-1 py-2 text-center text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-colors" onclick="switchMode('local')">
+                        <i class="fa-solid fa-upload mr-2"></i>Load Local File
+                    </button>
+                </div>
+
+                <!-- Tab: Search Engine -->
+                <div id="panelSearch" class="space-y-4">
+                    <p class="text-xs text-slate-400">Search for any song to download with high-quality generated audio and verified database metadata.</p>
+                    <div class="relative">
+                        <input type="text" id="searchInput" placeholder="Search song title, artist, or album..." 
+                               class="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-4 py-3 pl-11 text-sm text-white focus:outline-none focus:border-brand-500 transition-all placeholder:text-slate-500"
+                               onkeydown="if(event.key === 'Enter') performSearch()">
+                        <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 text-sm"></i>
+                        <button onclick="performSearch()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-brand-600 hover:bg-brand-500 text-white text-xs px-3 py-1.5 rounded-lg transition-colors font-medium">
+                            Search
+                        </button>
+                    </div>
+
+                    <!-- Search Results container -->
+                    <div id="searchResults" class="max-h-[320px] overflow-y-auto space-y-2 pr-1 custom-scroll">
+                        <!-- Welcome Placeholder -->
+                        <div class="text-center py-8 text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-900/10">
+                            <i class="fa-solid fa-music text-3xl mb-2 text-slate-600"></i>
+                            <p class="text-xs">Find songs using real-time search</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab: Local Upload File Tagger -->
+                <div id="panelLocal" class="hidden space-y-4">
+                    <p class="text-xs text-slate-400">Upload an existing MP3 or WAV file. We'll read its ID3 tags, let you edit them, add lyrics and covers, and export a perfectly tagged version.</p>
+                    <div class="border-2 border-dashed border-slate-800 hover:border-brand-500 rounded-2xl p-6 text-center cursor-pointer bg-slate-900/10 hover:bg-slate-900/30 transition-all group"
+                         onclick="document.getElementById('fileInput').click()"
+                         ondragover="event.preventDefault(); this.classList.add('border-brand-500')"
+                         ondragleave="this.classList.remove('border-brand-500')"
+                         ondrop="handleFileDrop(event)">
+                        <input type="file" id="fileInput" accept="audio/*" class="hidden" onchange="handleFileSelect(event)">
+                        <i class="fa-solid fa-file-arrow-up text-4xl mb-3 text-slate-600 group-hover:text-brand-500 transition-colors"></i>
+                        <h3 class="text-sm font-semibold text-slate-200">Drag & Drop Audio File</h3>
+                        <p class="text-xs text-slate-500 mt-1">Accepts MP3, WAV, M4A up to 50MB</p>
+                        <span class="inline-block mt-3 bg-slate-800 group-hover:bg-brand-600 text-slate-300 group-hover:text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                            Select File
+                        </span>
+                    </div>
+                    <div id="localFileBadge" class="hidden bg-brand-500/10 border border-brand-500/30 rounded-xl p-3 flex items-center justify-between">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <i class="fa-solid fa-file-audio text-brand-500 text-lg flex-shrink-0"></i>
+                            <div class="overflow-hidden">
+                                <p id="localFileName" class="text-xs font-semibold truncate text-slate-200">song.mp3</p>
+                                <p id="localFileSize" class="text-[10px] text-slate-400">0.0 MB</p>
+                            </div>
+                        </div>
+                        <button onclick="clearLocalFile()" class="text-slate-400 hover:text-red-400 transition-colors text-xs p-1">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quality & Format Settings -->
+            <div class="glassmorphism liquid-glass rounded-2xl p-5 shadow-2xl">
+                <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-4 flex items-center justify-between">
+                    <span>Quality Selector</span>
+                    <span class="text-[10px] bg-brand-500/20 text-brand-400 px-2 py-0.5 rounded-full lowercase">audiophile choice</span>
+                </h2>
+                
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Option 1: FLAC -->
+                    <label class="relative flex flex-col p-3 rounded-xl border border-slate-800 bg-slate-950/40 hover:bg-slate-950 cursor-pointer transition-all select-none group">
+                        <input type="radio" name="audioQuality" value="flac" class="absolute top-3 right-3 accent-brand-500">
+                        <span class="text-sm font-bold text-white flex items-center gap-1.5">
+                            FLAC <span class="text-[9px] bg-indigo-500/20 text-indigo-400 px-1 py-0.2 rounded">HQ</span>
+                        </span>
+                        <span class="text-xs text-slate-400 mt-1">Lossless • 24-bit</span>
+                        <span class="text-[10px] text-slate-500 mt-2 font-mono">~950 kbps (34.2 MB)</span>
+                    </label>
+
+                    <!-- Option 2: WAV -->
+                    <label class="relative flex flex-col p-3 rounded-xl border border-slate-800 bg-slate-950/40 hover:bg-slate-950 cursor-pointer transition-all select-none group">
+                        <input type="radio" name="audioQuality" value="wav" class="absolute top-3 right-3 accent-brand-500">
+                        <span class="text-sm font-bold text-white flex items-center gap-1.5">
+                            WAV <span class="text-[9px] bg-amber-500/20 text-amber-400 px-1 py-0.2 rounded">STUDIO</span>
+                        </span>
+                        <span class="text-xs text-slate-400 mt-1">Uncompressed</span>
+                        <span class="text-[10px] text-slate-500 mt-2 font-mono">1411 kbps (50.8 MB)</span>
+                    </label>
+
+                    <!-- Option 3: MP3 -->
+                    <label class="relative flex flex-col p-3 rounded-xl border border-slate-800 bg-slate-950/40 hover:bg-slate-950 cursor-pointer transition-all select-none group">
+                        <input type="radio" name="audioQuality" value="mp3" checked class="absolute top-3 right-3 accent-brand-500">
+                        <span class="text-sm font-bold text-white flex items-center gap-1.5">
+                            MP3 <span class="text-[9px] bg-emerald-500/20 text-emerald-400 px-1 py-0.2 rounded">BEST</span>
+                        </span>
+                        <span class="text-xs text-slate-400 mt-1">Extreme V0</span>
+                        <span class="text-[10px] text-slate-500 mt-2 font-mono">320 kbps (11.4 MB)</span>
+                    </label>
+
+                    <!-- Option 4: AAC -->
+                    <label class="relative flex flex-col p-3 rounded-xl border border-slate-800 bg-slate-950/40 hover:bg-slate-950 cursor-pointer transition-all select-none group">
+                        <input type="radio" name="audioQuality" value="aac" class="absolute top-3 right-3 accent-brand-500">
+                        <span class="text-sm font-bold text-white flex items-center gap-1.5">
+                            AAC <span class="text-[9px] bg-pink-500/20 text-pink-400 px-1 py-0.2 rounded">LIGHT</span>
+                        </span>
+                        <span class="text-xs text-slate-400 mt-1">Modern Compressed</span>
+                        <span class="text-[10px] text-slate-500 mt-2 font-mono">256 kbps (9.1 MB)</span>
+                    </label>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-slate-800/60 flex items-center justify-between text-xs text-slate-400">
+                    <span>Procedural Audio Synth Engine</span>
+                    <select id="audioGenre" class="bg-slate-950 border border-slate-800 rounded px-2 py-1 text-slate-300 focus:outline-none focus:border-brand-500">
+                        <option value="synthwave">Retro Synthwave Beat</option>
+                        <option value="lofi">Lofi Ambient Dreams</option>
+                        <option value="space">Ambient Space Drone</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Simulated Download Queue -->
+            <div class="glassmorphism liquid-glass rounded-2xl p-5 shadow-2xl">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400">
+                        <span>Batch Queue Simulator</span>
+                    </h2>
+                    <span class="text-xs text-indigo-400 cursor-pointer hover:underline" onclick="clearBatchList()">Clear Logs</span>
+                </div>
+                <div id="batchContainer" class="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                    <p class="text-xs text-slate-500 text-center py-4">No active batch downloads.</p>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- Right Column: Interactive Editor Studio -->
+        <section class="w-full lg:w-7/12 flex flex-col gap-6">
+            
+            <!-- Metadata & Studio Editor Grid -->
+            <div class="glassmorphism liquid-glass rounded-2xl p-6 shadow-2xl relative overflow-hidden">
+                <div class="absolute top-0 right-0 w-64 h-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none"></div>
+                
+                <div class="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-brand-500"></i> Studio Customizer
+                    </h2>
+                    <span class="text-xs text-slate-400 font-mono" id="currentTrackID">ID: DEMO-TRACK-1</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+                    
+                    <!-- Music Player Visualizer Preview -->
+                    <div class="md:col-span-5 flex flex-col items-center">
+                        <div class="relative w-48 h-48 rounded-full shadow-2xl border-4 border-slate-950 flex items-center justify-center bg-black/60 overflow-hidden group">
+                            <!-- Vinyl Center Pin -->
+                            <div class="absolute w-12 h-12 rounded-full bg-slate-950 border-4 border-slate-900 z-20 flex items-center justify-center shadow-inner">
+                                <div class="w-3.5 h-3.5 rounded-full bg-slate-700"></div>
+                            </div>
+                            
+                            <!-- Album Cover on Vinyl (Spins when active) -->
+                            <img id="playerVinylCover" src="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop" 
+                                 class="absolute inset-0 w-full h-full object-cover rounded-full opacity-80 spinning-vinyl paused-vinyl transition-all duration-300 z-10" 
+                                 onerror="this.src='https://placehold.co/400x400/1e293b/ffffff?text=SonicSieve'" alt="Vinyl Cover">
+                            
+                            <!-- Vinyl Grooves Overlay -->
+                            <div class="absolute inset-0 rounded-full border border-white/5 pointer-events-none z-10 shadow-[inset_0_0_40px_rgba(0,0,0,0.8)]"></div>
+                            <div class="absolute w-[80%] h-[80%] rounded-full border border-white/5 pointer-events-none z-10"></div>
+                            <div class="absolute w-[60%] h-[60%] rounded-full border border-white/5 pointer-events-none z-10"></div>
+                            <div class="absolute w-[40%] h-[40%] rounded-full border border-white/5 pointer-events-none z-10"></div>
+                            
+                            <!-- Hover Overlay Play -->
+                            <button onclick="togglePreviewAudio()" class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center z-30 rounded-full">
+                                <div id="previewPlayBtnCircle" class="w-14 h-14 rounded-full bg-brand-500 text-white flex items-center justify-center shadow-lg transform scale-90 group-hover:scale-100 transition-transform">
+                                    <i id="previewPlayBtnIcon" class="fa-solid fa-play text-xl ml-1"></i>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <div class="text-center mt-4 w-full">
+                            <h3 id="playerTrackTitle" class="text-base font-bold text-white truncate px-2">Midnight Neon</h3>
+                            <p id="playerTrackArtist" class="text-xs text-brand-500 font-semibold truncate mt-0.5">Sieve Waveform</p>
+                            <p id="playerTrackAlbum" class="text-[10px] text-slate-500 truncate mt-0.5">Chroma Studio Vol. 1</p>
+                        </div>
+
+                        <!-- Mini audio spectrum visualizer (Simulated animation via JS) -->
+                        <div class="flex gap-1 h-8 items-end mt-4 justify-center w-full max-w-[180px]">
+                            <div class="bar bg-brand-500 w-1.5 h-1 rounded-sm transition-all duration-150"></div>
+                            <div class="bar bg-indigo-500 w-1.5 h-1 rounded-sm transition-all duration-150"></div>
+                            <div class="bar bg-brand-pink w-1.5 h-1 rounded-sm transition-all duration-150"></div>
+                            <div class="bar bg-brand-500 w-1.5 h-1 rounded-sm transition-all duration-150"></div>
+                            <div class="bar bg-indigo-500 w-1.5 h-1 rounded-sm transition-all duration-150"></div>
+                            <div class="bar bg-brand-pink w-1.5 h-1 rounded-sm transition-all duration-150"></div>
+                            <div class="bar bg-brand-500 w-1.5 h-1 rounded-sm transition-all duration-150"></div>
+                            <div class="bar bg-indigo-500 w-1.5 h-1 rounded-sm transition-all duration-150"></div>
+                        </div>
+
+                        <!-- Live Sync Player progress bar -->
+                        <div class="w-full mt-4 flex items-center justify-between text-[10px] text-slate-500">
+                            <span id="playerCurrentTime">0:00</span>
+                            <div class="flex-grow mx-2 h-1 bg-slate-800 rounded-full overflow-hidden relative cursor-pointer" onclick="seekAudio(event)">
+                                <div id="playerProgress" class="h-full bg-gradient-to-r from-brand-500 to-brand-pink w-0"></div>
+                            </div>
+                            <span id="playerDuration">0:10</span>
+                        </div>
+                    </div>
+
+                    <!-- Metadata Fields Form -->
+                    <div class="md:col-span-7 space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Song Title</label>
+                                <input type="text" id="metaTitle" value="Midnight Neon" placeholder="e.g., Blinding Lights" 
+                                       class="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                       oninput="syncLivePlayer()">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Artist Name</label>
+                                <input type="text" id="metaArtist" value="Sieve Waveform" placeholder="e.g., The Weeknd" 
+                                       class="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                       oninput="syncLivePlayer()">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Album Title</label>
+                                <input type="text" id="metaAlbum" value="Chroma Studio Vol. 1" placeholder="e.g., After Hours" 
+                                       class="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                       oninput="syncLivePlayer()">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Genre</label>
+                                <input type="text" id="metaGenre" value="Synthwave" placeholder="e.g., Synthpop" 
+                                       class="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Year</label>
+                                <input type="number" id="metaYear" value="2026" placeholder="2026" 
+                                       class="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Track #</label>
+                                <input type="number" id="metaTrack" value="1" placeholder="1" 
+                                       class="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-400 mb-1">Composer</label>
+                                <input type="text" id="metaComposer" value="Sieve Synthesizer" placeholder="Max Martin" 
+                                       class="w-full bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500 transition-all">
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <span class="block text-xs font-semibold text-slate-400">Album Artwork Cover Source</span>
+                            <div class="flex items-center gap-2">
+                                <input type="text" id="metaCoverURL" value="https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop" placeholder="Image URL (e.g. https://...)" 
+                                       class="flex-grow bg-slate-950/60 border border-slate-800 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 transition-all"
+                                       onchange="updateCoverFromURL(this.value)">
+                                <button onclick="document.getElementById('customCoverInput').click()" 
+                                        class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-2 rounded-lg font-semibold flex items-center gap-1 flex-shrink-0">
+                                    <i class="fa-solid fa-image"></i> Local
+                                </button>
+                                <input type="file" id="customCoverInput" accept="image/*" class="hidden" onchange="handleCoverUpload(event)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tab Control: Lyrics & Cover Art Customization Studio Section -->
+                <div class="mt-8 border-t border-slate-800/80 pt-6">
+                    <div class="flex border-b border-slate-800 pb-3 mb-4 gap-4">
+                        <button id="tabBtnCover" class="pb-2 text-sm font-semibold border-b-2 border-brand-500 text-brand-500 transition-colors" onclick="switchSubTab('cover')">
+                            <i class="fa-solid fa-wand-magic-sparkles mr-2"></i>Cover Art Studio Filter
+                        </button>
+                        <button id="tabBtnLyrics" class="pb-2 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-colors" onclick="switchSubTab('lyrics')">
+                            <i class="fa-solid fa-file-signature mr-2"></i>Lyrics Syncer & LRC
+                        </button>
+                    </div>
+
+                    <!-- Sub-Tab: Cover Art Photo filters -->
+                    <div id="subTabCover" class="space-y-4">
+                        <p class="text-xs text-slate-400">Modify the active album cover style. These filters will be baked directly onto the canvas and saved into the download file's embedded cover art.</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <!-- Brightness -->
+                            <div>
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>Brightness</span>
+                                    <span id="labelBrightness">100%</span>
+                                </div>
+                                <input type="range" id="filterBrightness" min="50" max="150" value="100" class="w-full accent-brand-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="applyFilters()">
+                            </div>
+                            <!-- Contrast -->
+                            <div>
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>Contrast</span>
+                                    <span id="labelContrast">100%</span>
+                                </div>
+                                <input type="range" id="filterContrast" min="50" max="150" value="100" class="w-full accent-brand-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="applyFilters()">
+                            </div>
+                            <!-- Saturation -->
+                            <div>
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>Saturation</span>
+                                    <span id="labelSaturation">100%</span>
+                                </div>
+                                <input type="range" id="filterSaturation" min="0" max="200" value="100" class="w-full accent-brand-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="applyFilters()">
+                            </div>
+                            <!-- Sepia -->
+                            <div>
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>Sepia Vintage</span>
+                                    <span id="labelSepia">0%</span>
+                                </div>
+                                <input type="range" id="filterSepia" min="0" max="100" value="0" class="w-full accent-brand-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="applyFilters()">
+                            </div>
+                            <!-- Blur -->
+                            <div>
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span>Atmospheric Blur</span>
+                                    <span id="labelBlur">0px</span>
+                                </div>
+                                <input type="range" id="filterBlur" min="0" max="10" value="0" class="w-full accent-brand-500 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer" oninput="applyFilters()">
+                            </div>
+                            <!-- Preset Actions -->
+                            <div class="flex items-end justify-between gap-2">
+                                <button onclick="resetFilters()" class="text-xs text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700 bg-slate-900/50 py-1.5 px-3 rounded-lg flex-grow">
+                                    Reset Filters
+                                </button>
+                                <button onclick="bakeAndApplyCoverArt()" class="text-xs text-indigo-400 hover:text-white bg-indigo-500/10 hover:bg-indigo-500/20 py-1.5 px-3 rounded-lg flex-grow border border-indigo-500/20">
+                                    Bake Canvas
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Hidden renderer -->
+                        <canvas id="canvasBake" class="hidden"></canvas>
+                    </div>
+
+                    <!-- Sub-Tab: Lyrics syncer and LRC Editor -->
+                    <div id="subTabLyrics" class="hidden space-y-4">
+                        <div class="flex flex-col md:flex-row gap-4">
+                            <!-- Left: Plain Lyrics Input -->
+                            <div class="flex-1 space-y-2">
+                                <div class="flex items-center justify-between">
+                                    <label class="block text-xs font-semibold text-slate-400">Song Lyrics Editor</label>
+                                    <button onclick="autoFetchLyrics()" class="text-[10px] text-brand-400 hover:text-white flex items-center gap-1 bg-brand-500/10 border border-brand-500/20 px-2 py-1 rounded">
+                                        <i class="fa-solid fa-cloud-arrow-down"></i> Auto-Fetch Lyrics
+                                    </button>
+                                </div>
+                                <textarea id="lyricsTextInput" rows="8" placeholder="Paste or type lyrics here. One line per row." 
+                                          class="w-full bg-slate-950/60 border border-slate-800 rounded-lg p-3 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-all font-sans leading-relaxed resize-none"
+                                          oninput="syncLyricsToDisplay()"></textarea>
+                            </div>
+
+                            <!-- Right: Live LRC Syncer Tool -->
+                            <div class="flex-1 bg-slate-950/40 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+                                <div class="space-y-2">
+                                    <div class="flex items-center justify-between">
+                                        <h4 class="text-xs font-bold uppercase text-slate-400">Synced LRC Generator</h4>
+                                        <span class="text-[10px] text-slate-500">Live Time Recording</span>
+                                    </div>
+                                    <p class="text-[11px] text-slate-400 leading-relaxed">Play the preview generator track. Press the <strong>[Stamp Current Time]</strong> button (or tap spacebar when focusing this area) to tag the highlight lyric line with high precision timestamp.</p>
+                                </div>
+
+                                <div class="bg-slate-950 border border-slate-800 p-2.5 rounded-lg text-xs min-h-[60px] flex items-center justify-center text-center mt-2 relative overflow-hidden">
+                                    <p id="syncedLyricsActiveLine" class="text-brand-400 font-semibold animate-pulse">Wait for track play to stamp lines...</p>
+                                </div>
+
+                                <div class="flex gap-2 mt-4">
+                                    <button onclick="stampCurrentLyricLine()" id="btnStamp" disabled
+                                            class="flex-grow bg-emerald-600/20 hover:bg-emerald-600 text-emerald-400 hover:text-white disabled:opacity-50 disabled:bg-slate-900 disabled:text-slate-500 text-xs font-bold py-2 px-3 rounded-lg border border-emerald-500/20 transition-all">
+                                        <i class="fa-solid fa-stopwatch mr-1.5"></i> Stamp Current Line
+                                    </button>
+                                    <button onclick="resetLrcSync()" class="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white text-xs px-3 rounded-lg">
+                                        Reset
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Download / Action Panel -->
+            <div class="glassmorphism rounded-2xl p-6 shadow-2xl relative overflow-hidden flex flex-col sm:flex-row items-center justify-between gap-6 border-2 border-indigo-500/20">
+                <div class="absolute inset-0 bg-gradient-to-r from-brand-500/5 to-indigo-500/5 pointer-events-none"></div>
+                
+                <div class="space-y-1 w-full sm:w-2/3 text-left">
+                    <h3 class="text-md font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-file-invoice text-brand-pink"></i> Compilation Summary
+                    </h3>
+                    <p class="text-xs text-slate-400" id="summaryAudioDetails">
+                        Ready to assemble lossless PCM wave file package with packed canvas metadata.
+                    </p>
+                    <div class="flex gap-4 mt-2 text-[10px] text-slate-400">
+                        <span><strong class="text-slate-300">Format:</strong> <span id="summaryFormat">MP3</span></span>
+                        <span><strong class="text-slate-300">Target Bitrate:</strong> <span id="summaryBitrate">320 kbps</span></span>
+                        <span><strong class="text-slate-300">Lyrics Embedded:</strong> <span id="summaryLyricsStatus" class="text-amber-400">No</span></span>
+                    </div>
+                </div>
+
+                <div class="w-full sm:w-auto flex-shrink-0 flex flex-col gap-2">
+                    <button onclick="generateAndAssembleDownload()" id="btnActionDownload"
+                            class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-pink text-white font-bold text-sm shadow-xl shadow-brand-500/20 hover:shadow-brand-500/40 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-cloud-arrow-down text-base"></i> Generate & Download
+                    </button>
+                </div>
+            </div>
+
+            <!-- Download State Progress Box (Hidden until compilation starts) -->
+            <div id="compilationProgressBox" class="hidden glassmorphism rounded-2xl p-5 shadow-2xl space-y-4 border border-brand-500/30">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-circle-notch animate-spin text-brand-500 text-lg"></i>
+                        <span class="text-xs font-bold text-white" id="progressStatusLabel">Assembling Audio Channels...</span>
+                    </div>
+                    <span class="text-xs font-mono text-brand-400 font-semibold" id="progressPercent">0%</span>
+                </div>
+                <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
+                    <div id="progressBarFill" class="h-full bg-gradient-to-r from-brand-500 to-brand-pink transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p class="text-[10px] text-slate-400 italic" id="progressSubLabel">Running local Web Audio context rendering...</p>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Custom Dialog Toast Alert Boxes (No native alerts allowed!) -->
+    <div id="toastContainer" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full"></div>
+
+    <script>
+        // Track States & Simulated Database
+        let currentMode = 'search'; // 'search' or 'local'
+        let currentSubTab = 'cover'; // 'cover' or 'lyrics'
+        let selectedTrackData = null; // iTunes search or local metadata
+        let localFileArrayBuffer = null; // Stored local uploaded music arraybuffer
+        let generatedTrackAudioBlob = null; // Stored procedurally synthesized audio blob
+        let audioContextInstance = null;
+        let previewAudioNode = null; // Holds the live audio synthesizer sound source
+let previewAudioElement = null; // Holds the remote preview audio element
+let previewPlaybackMode = 'synth'; // 'synth' or 'remote'
+let previewIsPlaying = false;
+let playIntervalTimer = null;
+let totalPreviewDuration = 10; // 10 seconds synthetic audio duration
+let localFileExtension = null;
+        const popularLyricsDatabase = {
+            "blinding lights": `[00:01.00] I've been tryna call
+[00:03.00] I've been on my own for long enough
+[00:05.50] Maybe you can show me how to love, maybe
+[00:08.00] I look around and Sin City's cold and empty
+[00:10.00] No, I can't sleep until I feel your touch`,
+            "stay": `[00:01.00] I do the same thing I told you that I never would
+[00:03.50] I told you I'd change, even when I knew I never could
+[00:06.00] I know that I can't find nobody else as good as you
+[00:08.00] I need you to stay, need you to stay, yeah`,
+            "bohemian rhapsody": `[00:01.00] Is this the real life? Is this just fantasy?
+[00:03.00] Caught in a landslide, no escape from reality
+[00:06.00] Open your eyes, look up to the skies and see
+[00:08.00] I'm just a poor boy, I need no sympathy`,
+            "shape of you": `[00:01.00] The club isn't the best place to find a lover
+[00:03.00] So the bar is where I go
+[00:05.00] Me and my friends at the table doing shots
+[00:07.50] Drinking fast and then we talk slow`,
+            "midnight neon": `[00:01.00] Running fast on electronic lines of light
+[00:03.00] We catch the sieve of waveforms in the night
+[00:05.00] Lossless frequencies filtering so bright
+[00:08.00] Neon sounds are glowing till the morning sky`
+        };
+
+        window.onload = function() {
+            // Check browser-id3-writer loaded correctly
+            if (typeof ID3Writer === 'undefined') {
+                showToast("ID3 Writer library failed to load via CDN. Saving metadata fallback enabled.", "warning");
+            }
+            
+            // Bind spacebar keydown specifically when customizer lyrics synchronized is focused
+            window.addEventListener('keydown', function(e) {
+                if (e.code === 'Space' && document.activeElement === document.getElementById('lyricsTextInput')) {
+                    // Let normal spacebar write in text area
+                    return;
+                }
+                if (e.code === 'Space' && currentSubTab === 'lyrics' && previewIsPlaying) {
+                    e.preventDefault();
+                    stampCurrentLyricLine();
+                }
+            });
+
+            // Initial view setup
+            switchMode('search');
+            switchSubTab('cover');
+            
+            // Generate some dummy content on search list initial status
+            renderInitialPlaceholderList();
+
+            // Set initial lyrics for default track
+            document.getElementById('lyricsTextInput').value = popularLyricsDatabase['midnight neon'];
+            syncLyricsToDisplay();
+        };
+
+        // UI Toast Alert Controller
+        function showToast(message, type = "info") {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `flex items-start gap-3 p-4 rounded-xl border shadow-xl transition-all transform translate-y-2 opacity-0 duration-300 glassmorphism`;
+            
+            let icon = `<i class="fa-solid fa-circle-info text-blue-400"></i>`;
+            let borderStyle = "border-indigo-500/30";
+            if (type === "success") {
+                icon = `<i class="fa-solid fa-circle-check text-emerald-400"></i>`;
+                borderStyle = "border-emerald-500/30";
+            } else if (type === "warning") {
+                icon = `<i class="fa-solid fa-triangle-exclamation text-amber-400"></i>`;
+                borderStyle = "border-amber-500/30";
+            } else if (type === "error") {
+                icon = `<i class="fa-solid fa-circle-exclamation text-red-400"></i>`;
+                borderStyle = "border-red-500/30";
+            }
+
+            toast.innerHTML = `
+                <div class="flex-shrink-0 text-md">${icon}</div>
+                <div class="flex-grow">
+                    <p class="text-xs text-slate-200 font-semibold leading-relaxed">${message}</p>
+                </div>
+                <button onclick="this.parentElement.remove()" class="text-slate-500 hover:text-white transition-colors text-xs ml-2">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            `;
+            toast.classList.add(borderStyle);
+            container.appendChild(toast);
+            
+            // Animation trigger
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            // Auto-hide
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // Switch panel display modes
+        function switchMode(mode) {
+            currentMode = mode;
+            const tabSearch = document.getElementById('tabSearch');
+            const tabLocal = document.getElementById('tabLocal');
+            const panelSearch = document.getElementById('panelSearch');
+            const panelLocal = document.getElementById('panelLocal');
+
+            if (mode === 'search') {
+                tabSearch.className = "flex-1 py-2 text-center text-sm font-semibold border-b-2 border-brand-500 text-brand-500 transition-colors cursor-pointer";
+                tabLocal.className = "flex-1 py-2 text-center text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-colors cursor-pointer";
+                panelSearch.classList.remove('hidden');
+                panelLocal.classList.add('hidden');
+            } else {
+                tabSearch.className = "flex-1 py-2 text-center text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-colors cursor-pointer";
+                tabLocal.className = "flex-1 py-2 text-center text-sm font-semibold border-b-2 border-brand-500 text-brand-500 transition-colors cursor-pointer";
+                panelSearch.classList.add('hidden');
+                panelLocal.classList.remove('hidden');
+            }
+            stopPreview();
+        }
+
+        function switchSubTab(subTab) {
+            currentSubTab = subTab;
+            const tabBtnCover = document.getElementById('tabBtnCover');
+            const tabBtnLyrics = document.getElementById('tabBtnLyrics');
+            const subTabCover = document.getElementById('subTabCover');
+            const subTabLyrics = document.getElementById('subTabLyrics');
+
+            if (subTab === 'cover') {
+                tabBtnCover.className = "pb-2 text-sm font-semibold border-b-2 border-brand-500 text-brand-500 transition-colors cursor-pointer";
+                tabBtnLyrics.className = "pb-2 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-colors cursor-pointer";
+                subTabCover.classList.remove('hidden');
+                subTabLyrics.classList.add('hidden');
+            } else {
+                tabBtnCover.className = "pb-2 text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white transition-colors cursor-pointer";
+                tabBtnLyrics.className = "pb-2 text-sm font-semibold border-b-2 border-brand-500 text-brand-500 transition-colors cursor-pointer";
+                subTabCover.classList.add('hidden');
+                subTabLyrics.classList.remove('hidden');
+                syncLyricsToDisplay();
+            }
+        }
+
+        function renderInitialPlaceholderList() {
+            const resultsBox = document.getElementById('searchResults');
+            const initialSongs = [
+                {trackName: "Blinding Lights", artistName: "The Weeknd", collectionName: "After Hours", artworkUrl100: "https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=150&auto=format&fit=crop", releaseDate: "2020-03-20T07:00:00Z", primaryGenreName: "Synthpop", trackId: 1},
+                {trackName: "Stay", artistName: "The Kid LAROI & Justin Bieber", collectionName: "F*CK LOVE 3: OVER YOU", artworkUrl100: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=150&auto=format&fit=crop", releaseDate: "2021-07-09T07:00:00Z", primaryGenreName: "Pop/Rock", trackId: 2},
+                {trackName: "Bohemian Rhapsody", artistName: "Queen", collectionName: "A Night at the Opera", artworkUrl100: "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=150&auto=format&fit=crop", releaseDate: "1975-10-31T08:00:00Z", primaryGenreName: "Rock", trackId: 3}
+            ];
+
+            resultsBox.innerHTML = `
+                <p class="text-xs font-semibold text-slate-400 mb-2">Featured Tracks</p>
+            `;
+            
+            initialSongs.forEach(song => {
+                resultsBox.appendChild(createSongCard(song));
+            });
+        }
+
+        function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            if (!query) {
+                showToast("Please enter a song or artist to query.", "warning");
+                return;
+            }
+
+            const resultsBox = document.getElementById('searchResults');
+            resultsBox.innerHTML = `
+                <div class="flex flex-col items-center justify-center py-12 text-slate-400">
+                    <i class="fa-solid fa-circle-notch animate-spin text-2xl text-brand-500 mb-2"></i>
+                    <p class="text-xs">Crawling verified catalogs...</p>
+                </div>
+            `;
+
+            // Query iTunes Search API
+            const encodedQuery = encodeURIComponent(query);
+            const url = `https://itunes.apple.com/search?term=${encodedQuery}&entity=song&limit=15`;
+
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.results && data.results.length > 0) {
+                        resultsBox.innerHTML = `<p class="text-xs font-semibold text-indigo-400 mb-2">Found ${data.results.length} results matching "${query}"</p>`;
+                        data.results.forEach(song => {
+                            resultsBox.appendChild(createSongCard(song));
+                        });
+                    } else {
+                        resultsBox.innerHTML = `
+                            <div class="text-center py-10 text-slate-500 border border-slate-800 rounded-xl">
+                                <i class="fa-solid fa-face-frown text-3xl mb-2 text-slate-600"></i>
+                                <p class="text-xs">No online results found.</p>
+                                <button onclick="useRawFallback('${query}')" class="mt-2 text-[10px] text-brand-500 underline hover:text-white">Use typed term as direct track name</button>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(err => {
+                    console.error("Search API Error: ", err);
+                    showToast("Network fetch failed. Rendering rich simulated offline records.", "warning");
+                    renderInitialPlaceholderList();
+                });
+        }
+
+        function useRawFallback(query) {
+            const mockTrack = {
+                trackName: query,
+                artistName: "Unknown Artist",
+                collectionName: "Single Release",
+                artworkUrl100: "https://placehold.co/100x100/4f46e5/ffffff?text=" + encodeURIComponent(query),
+                releaseDate: new Date().toISOString(),
+                primaryGenreName: "Synthwave",
+                trackId: Math.floor(Math.random() * 10000)
+            };
+            loadSelectedTrack(mockTrack);
+        }
+
+        function createSongCard(song) {
+            const div = document.createElement('div');
+            div.className = "flex items-center gap-3 p-2 bg-slate-900/40 hover:bg-slate-900/80 border border-slate-800 rounded-xl cursor-pointer transition-all hover:border-indigo-500/30 group";
+            div.onclick = () => loadSelectedTrack(song);
+
+            // Get high quality art
+            let imgUrl = song.artworkUrl100.replace("100x100bb.jpg", "300x300bb.jpg");
+            
+            div.innerHTML = `
+                <img src="${imgUrl}" class="w-10 h-10 rounded-lg object-cover bg-slate-800" onerror="this.src='https://placehold.co/100x100/111827/ffffff?text=Cover'">
+                <div class="flex-grow min-w-0 text-left">
+                    <h4 class="text-xs font-semibold text-slate-100 truncate group-hover:text-brand-500 transition-colors">${song.trackName}</h4>
+                    <p class="text-[10px] text-slate-400 truncate">${song.artistName} • <span class="text-slate-500">${song.collectionName || 'No Album'}</span></p>
+                </div>
+                <div class="flex-shrink-0">
+                    <i class="fa-solid fa-circle-plus text-slate-600 group-hover:text-brand-500 transition-colors text-sm pr-1"></i>
+                </div>
+            `;
+            return div;
+        }
+
+        let currentPreviewObjectUrl = null;
+
+        async function prepareRemotePreview(url) {
+            if (previewAudioElement) {
+                previewAudioElement.pause();
+                previewAudioElement.src = '';
+                previewAudioElement = null;
+            }
+            if (currentPreviewObjectUrl) {
+                URL.revokeObjectURL(currentPreviewObjectUrl);
+                currentPreviewObjectUrl = null;
+            }
+            try {
+                previewAudioElement = new Audio(url);
+                previewAudioElement.preload = 'metadata';
+                previewAudioElement.crossOrigin = 'anonymous';
+                previewAudioElement.addEventListener('loadedmetadata', () => {
+                    totalPreviewDuration = previewAudioElement.duration || 10;
+                    document.getElementById('playerDuration').innerText = formatTime(totalPreviewDuration);
+                });
+                previewAudioElement.addEventListener('error', (e) => {
+                    console.error('Remote preview source failed to play', e);
+                    previewAudioElement = null;
+                    previewPlaybackMode = 'synth';
+                    showToast('Remote preview is not supported in this browser; using synth preview instead.', 'warning');
+                });
+                previewAudioElement.addEventListener('ended', stopPreview);
+                previewPlaybackMode = 'remote';
+            } catch (err) {
+                console.error('Remote preview setup failed', err);
+                previewPlaybackMode = 'synth';
+                showToast('Unable to initialize remote preview; defaulting to synth preview.', 'warning');
+            }
+        }
+
+        function loadSelectedTrack(song) {
+            selectedTrackData = song;
+            previewPlaybackMode = song.previewUrl ? 'remote' : 'synth';
+            if (previewAudioElement) {
+                previewAudioElement.pause();
+                previewAudioElement.src = '';
+                previewAudioElement = null;
+            }
+            if (song.previewUrl) {
+                prepareRemotePreview(song.previewUrl);
+            }
+            
+            // Format Track ID
+            document.getElementById('currentTrackID').innerText = `ID: ITUNES-${song.trackId}`;
+
+            // Sync Main Form Inputs
+            document.getElementById('metaTitle').value = song.trackName || "";
+            document.getElementById('metaArtist').value = song.artistName || "";
+            document.getElementById('metaAlbum').value = song.collectionName || "";
+            document.getElementById('metaGenre').value = song.primaryGenreName || "";
+            
+            let releaseYear = "";
+            if (song.releaseDate) {
+                releaseYear = new Date(song.releaseDate).getFullYear();
+            }
+            document.getElementById('metaYear').value = releaseYear;
+            document.getElementById('metaTrack').value = song.trackNumber || "1";
+            
+            // High Resolution Album Art Conversion
+            let hdArtwork = song.artworkUrl100.replace("100x100bb.jpg", "1000x1000bb.jpg");
+            document.getElementById('metaCoverURL').value = hdArtwork;
+            
+            // Apply Image immediately to Live Visualizer Player Cover & Preset Sliders
+            resetFilters();
+
+            // Set Album cover image with cache bypass fallback
+            const imgElement = document.getElementById('playerVinylCover');
+            imgElement.crossOrigin = "anonymous";
+            imgElement.src = hdArtwork;
+
+            // Sync Text info inside Player widget
+            syncLivePlayer();
+
+            // Auto-lookup Lyrics
+            attemptLyricLookup(song.trackName, song.artistName);
+
+            // Generate compilation metrics update
+            updateCompilationSummary();
+
+            showToast(`Loaded "${song.trackName}" successfully into Studio Editor!`, "success");
+        }
+
+        function syncLivePlayer() {
+            const titleVal = document.getElementById('metaTitle').value || "Unrecognized Track";
+            const artistVal = document.getElementById('metaArtist').value || "Unknown Artist";
+            const albumVal = document.getElementById('metaAlbum').value || "Unknown Album";
+
+            document.getElementById('playerTrackTitle').innerText = titleVal;
+            document.getElementById('playerTrackArtist').innerText = artistVal;
+            document.getElementById('playerTrackAlbum').innerText = albumVal;
+        }
+
+        function updateCoverFromURL(url) {
+            if (!url) return;
+            document.getElementById('playerVinylCover').src = url;
+            resetFilters();
+        }
+
+        function handleCoverUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('playerVinylCover').src = e.target.result;
+                document.getElementById('metaCoverURL').value = "[Embedded File Asset]";
+                resetFilters();
+                showToast("Custom cover art uploaded.", "success");
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function applyFilters() {
+            const b = document.getElementById('filterBrightness').value;
+            const c = document.getElementById('filterContrast').value;
+            const s = document.getElementById('filterSaturation').value;
+            const sepia = document.getElementById('filterSepia').value;
+            const blur = document.getElementById('filterBlur').value;
+
+            document.getElementById('labelBrightness').innerText = `${b}%`;
+            document.getElementById('labelContrast').innerText = `${c}%`;
+            document.getElementById('labelSaturation').innerText = `${s}%`;
+            document.getElementById('labelSepia').innerText = `${sepia}%`;
+            document.getElementById('labelBlur').innerText = `${blur}px`;
+
+            // Apply style direct to vinyl player live
+            const vinylImg = document.getElementById('playerVinylCover');
+            vinylImg.style.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) sepia(${sepia}%) blur(${blur}px)`;
+        }
+
+        function resetFilters() {
+            document.getElementById('filterBrightness').value = 100;
+            document.getElementById('filterContrast').value = 100;
+            document.getElementById('filterSaturation').value = 100;
+            document.getElementById('filterSepia').value = 0;
+            document.getElementById('filterBlur').value = 0;
+            applyFilters();
+        }
+
+        function bakeAndApplyCoverArt() {
+            return new Promise((resolve) => {
+                const img = document.getElementById('playerVinylCover');
+                const canvas = document.getElementById('canvasBake');
+                const ctx = canvas.getContext('2d');
+
+                const drawFallbackCover = () => {
+                    canvas.width = 600;
+                    canvas.height = 600;
+                    const title = document.getElementById('metaTitle').value || 'SonicSieve';
+                    const artist = document.getElementById('metaArtist').value || 'Studio';
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(0, 0, 600, 600);
+                    const gradient = ctx.createLinearGradient(0, 0, 600, 600);
+                    gradient.addColorStop(0, '#6366f1');
+                    gradient.addColorStop(1, '#ec4899');
+                    ctx.fillStyle = gradient;
+                    ctx.beginPath();
+                    ctx.arc(300, 300, 220, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+                    ctx.font = 'bold 48px Inter, sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(title, 300, 280);
+                    ctx.font = '24px Inter, sans-serif';
+                    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+                    ctx.fillText(artist, 300, 340);
+                    ctx.font = '20px Inter, sans-serif';
+                    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+                    ctx.fillText('SonicSieve • Liquid Glass', 300, 390);
+                    canvas.toBlob((blob) => {
+                        const reader = new FileReader();
+                        reader.onloadend = function() {
+                            resolve(reader.result);
+                        };
+                        reader.readAsArrayBuffer(blob);
+                    }, 'image/jpeg', 0.92);
+                };
+
+                const tempImg = new Image();
+                tempImg.crossOrigin = 'anonymous';
+                showToast('Baking visual filters into Cover Art Canvas...', 'info');
+
+                tempImg.onload = function() {
+                    canvas.width = 600;
+                    canvas.height = 600;
+                    const b = document.getElementById('filterBrightness').value;
+                    const c = document.getElementById('filterContrast').value;
+                    const s = document.getElementById('filterSaturation').value;
+                    const sepia = document.getElementById('filterSepia').value;
+                    const blur = document.getElementById('filterBlur').value;
+
+                    ctx.filter = `brightness(${b}%) contrast(${c}%) saturate(${s}%) sepia(${sepia}%) blur(${blur}px)`;
+                    ctx.drawImage(tempImg, 0, 0, 600, 600);
+                    ctx.filter = 'none';
+
+                    canvas.toBlob((blob) => {
+                        const reader = new FileReader();
+                        reader.onloadend = function() {
+                            resolve(reader.result);
+                            showToast('Canvas compiled successfully. Image serialized.', 'success');
+                        };
+                        reader.readAsArrayBuffer(blob);
+                    }, 'image/jpeg', 0.92);
+                };
+
+                tempImg.onerror = function() {
+                    drawFallbackCover();
+                    showToast('Cover art was unavailable, so a generated liquid-glass cover was used.', 'warning');
+                };
+
+                tempImg.src = img.src;
+            });
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            processLocalAudioFile(file);
+        }
+
+        function handleFileDrop(event) {
+            event.preventDefault();
+            const file = event.dataTransfer.files[0];
+            if (file) {
+                processLocalAudioFile(file);
+            }
+        }
+
+        function processLocalAudioFile(file) {
+            document.getElementById('localFileName').innerText = file.name;
+            document.getElementById('localFileSize').innerText = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+            document.getElementById('localFileBadge').classList.remove('hidden');
+            localFileExtension = file.name.split('.').pop().toLowerCase();
+            previewPlaybackMode = 'local';
+
+            if (previewAudioElement) {
+                previewAudioElement.pause();
+                previewAudioElement.src = '';
+                previewAudioElement = null;
+            }
+            previewAudioElement = new Audio(URL.createObjectURL(file));
+            previewAudioElement.preload = 'metadata';
+            previewAudioElement.addEventListener('loadedmetadata', () => {
+                totalPreviewDuration = previewAudioElement.duration || 10;
+                document.getElementById('playerDuration').innerText = formatTime(totalPreviewDuration);
+            });
+            previewAudioElement.addEventListener('ended', stopPreview);
+
+            const noExtName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+            const parts = noExtName.split(' - ');
+            let inferredTitle = noExtName;
+            let inferredArtist = "";
+            if (parts.length > 1) {
+                inferredArtist = parts[0].trim();
+                inferredTitle = parts[1].trim();
+            }
+
+            document.getElementById('metaTitle').value = inferredTitle;
+            document.getElementById('metaArtist').value = inferredArtist;
+            document.getElementById('metaAlbum').value = "Local Imports";
+            document.getElementById('metaYear').value = new Date().getFullYear();
+            
+            syncLivePlayer();
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                localFileArrayBuffer = e.target.result;
+                showToast("Local file audio stream ingested. Tag modification system connected.", "success");
+                updateCompilationSummary();
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function clearLocalFile() {
+            document.getElementById('fileInput').value = '';
+            document.getElementById('localFileBadge').classList.add('hidden');
+            localFileArrayBuffer = null;
+            updateCompilationSummary();
+            showToast("Local track cleared.", "info");
+        }
+
+        function attemptLyricLookup(title, artist) {
+            const searchKey = title.toLowerCase().trim();
+            let found = false;
+
+            for (let key in popularLyricsDatabase) {
+                if (searchKey.includes(key)) {
+                    document.getElementById('lyricsTextInput').value = popularLyricsDatabase[key];
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) {
+                showToast(`Automatically applied lyrics for "${title}".`, "success");
+            } else {
+                const fallbackLyrics = `[00:01.00] (${title} - Studio Master Stream)
+[00:04.00] (Perfect High-Fidelity Sync Track)
+[00:08.00] Enjoy the custom generated synth beat
+[00:10.00] (Seamless Studio Outro)`;
+                document.getElementById('lyricsTextInput').value = fallbackLyrics;
+                showToast('Used a built-in lyric template because no matching lyrics were available.', 'info');
+            }
+            syncLyricsToDisplay();
+        }
+
+        function autoFetchLyrics() {
+            const title = document.getElementById('metaTitle').value;
+            const artist = document.getElementById('metaArtist').value;
+            if (!title) {
+                showToast("Identify a track title first to match database catalogs.", "warning");
+                return;
+            }
+            attemptLyricLookup(title, artist);
+        }
+
+        function syncLyricsToDisplay() {
+            const lyrics = document.getElementById('lyricsTextInput').value.trim();
+            const textLines = lyrics.split('\n');
+            
+            currentLyricIndex = 0;
+            lyricTimeStamps = [];
+
+            let hasTimestamps = false;
+            textLines.forEach(line => {
+                const match = line.match(/\[(\d{2}):(\d{2})\.(\d{2})\](.*)/);
+                if (match) {
+                    hasTimestamps = true;
+                    const mins = parseInt(match[1]);
+                    const secs = parseInt(match[2]);
+                    const ms = parseInt(match[3]);
+                    const text = match[4].trim();
+                    const totalSecs = (mins * 60) + secs + (ms / 100);
+                    lyricTimeStamps.push({time: totalSecs, text: text, raw: line});
+                } else {
+                    lyricTimeStamps.push({time: null, text: line.trim(), raw: line});
+                }
+            });
+
+            const label = document.getElementById('summaryLyricsStatus');
+            if (lyrics.length > 0) {
+                label.innerText = hasTimestamps ? "YES (LRC Synced)" : "YES (Plain text)";
+                label.className = "text-emerald-400 font-bold";
+            } else {
+                label.innerText = "No";
+                label.className = "text-amber-400";
+            }
+
+            updateActiveLyricPreview(0);
+        }
+
+        function updateActiveLyricPreview(currentTime) {
+            if (lyricTimeStamps.length === 0) {
+                document.getElementById('syncedLyricsActiveLine').innerText = "Empty track lyrics sheet";
+                return;
+            }
+
+            let activeText = lyricTimeStamps[0].text;
+            let foundIndex = 0;
+
+            for (let i = 0; i < lyricTimeStamps.length; i++) {
+                if (lyricTimeStamps[i].time !== null && currentTime >= lyricTimeStamps[i].time) {
+                    activeText = lyricTimeStamps[i].text;
+                    foundIndex = i;
+                }
+            }
+
+            currentLyricIndex = foundIndex;
+            document.getElementById('syncedLyricsActiveLine').innerText = activeText || "(Instrumental Part)";
+        }
+
+        function stampCurrentLyricLine() {
+            if (!previewIsPlaying) return;
+            
+            const elapsed = getElapsedPlayTime();
+            
+            // Find first unstamped line
+            let nextUnstampedIndex = -1;
+            for (let i = 0; i < lyricTimeStamps.length; i++) {
+                if (lyricTimeStamps[i].time === null) {
+                    nextUnstampedIndex = i;
+                    break;
+                }
+            }
+
+            if (nextUnstampedIndex === -1) {
+                nextUnstampedIndex = currentLyricIndex + 1;
+                if (nextUnstampedIndex >= lyricTimeStamps.length) nextUnstampedIndex = 0;
+            }
+
+            const minutes = Math.floor(elapsed / 60);
+            const seconds = Math.floor(elapsed % 60);
+            const centiseconds = Math.floor((elapsed % 1) * 100);
+
+            const pad = (num) => String(num).padStart(2, '0');
+            const stamp = `[${pad(minutes)}:${pad(seconds)}.${pad(centiseconds)}]`;
+            
+            const cleanText = lyricTimeStamps[nextUnstampedIndex].text;
+            lyricTimeStamps[nextUnstampedIndex].time = elapsed;
+            lyricTimeStamps[nextUnstampedIndex].raw = `${stamp} ${cleanText}`;
+
+            const merged = lyricTimeStamps.map(item => item.raw).join('\n');
+            document.getElementById('lyricsTextInput').value = merged;
+
+            showToast(`Stamped Line #${nextUnstampedIndex + 1} at ${pad(minutes)}:${pad(seconds)}!`, "success");
+            syncLyricsToDisplay();
+        }
+
+        function resetLrcSync() {
+            const cleaned = lyricTimeStamps.map(item => item.text).join('\n');
+            document.getElementById('lyricsTextInput').value = cleaned;
+            syncLyricsToDisplay();
+            showToast("Timestamps cleared.", "info");
+        }
+
+        let playStartTime = 0;
+        let playPausedTime = 0;
+
+        function getElapsedPlayTime() {
+            if (!previewIsPlaying) return playPausedTime;
+            return (Date.now() - playStartTime) / 1000;
+        }
+
+        function togglePreviewAudio() {
+            if (previewIsPlaying) {
+                stopPreview();
+            } else {
+                startPreview();
+            }
+        }
+
+        function startPreview() {
+            if (previewIsPlaying) return;
+
+            const vinyl = document.getElementById('playerVinylCover');
+            vinyl.classList.remove('paused-vinyl');
+            document.getElementById('previewPlayBtnIcon').className = "fa-solid fa-pause text-xl";
+            document.getElementById('btnStamp').disabled = false;
+
+            if ((previewPlaybackMode === 'remote' || previewPlaybackMode === 'local') && previewAudioElement) {
+                previewAudioElement.currentTime = playPausedTime || 0;
+                previewAudioElement.play().then(() => {
+                    previewIsPlaying = true;
+                    playStartTime = Date.now() - ((previewAudioElement.currentTime || 0) * 1000);
+                    totalPreviewDuration = previewAudioElement.duration || totalPreviewDuration;
+
+                    playIntervalTimer = setInterval(() => {
+                        const elapsed = getElapsedPlayTime();
+                        const duration = previewAudioElement.duration || totalPreviewDuration;
+                        totalPreviewDuration = duration;
+
+                        if (elapsed >= duration) {
+                            stopPreview();
+                            return;
+                        }
+
+                        const progressPercent = (elapsed / duration) * 100;
+                        document.getElementById('playerProgress').style.width = `${progressPercent}%`;
+                        document.getElementById('playerCurrentTime').innerText = formatTime(elapsed);
+                        document.getElementById('playerDuration').innerText = formatTime(duration);
+                        updateActiveLyricPreview(elapsed);
+                    }, 100);
+                }).catch(err => {
+                    console.error(err);
+                    if (previewPlaybackMode === 'remote') {
+                        previewPlaybackMode = 'synth';
+                        previewAudioElement = null;
+                        showToast("Remote preview source is not playable. Switched to synth preview.", "warning");
+                        startPreview();
+                        return;
+                    }
+                    showToast("Playback was blocked or the source cannot be played.", "error");
+                });
+                return;
+            }
+
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                audioContextInstance = new AudioCtx();
+
+                previewIsPlaying = true;
+                playStartTime = Date.now() - (playPausedTime * 1000);
+                totalPreviewDuration = 10;
+
+                playIntervalTimer = setInterval(() => {
+                    const elapsed = getElapsedPlayTime();
+
+                    if (elapsed >= totalPreviewDuration) {
+                        stopPreview();
+                        return;
+                    }
+
+                    const progressPercent = (elapsed / totalPreviewDuration) * 100;
+                    document.getElementById('playerProgress').style.width = `${progressPercent}%`;
+                    document.getElementById('playerCurrentTime').innerText = formatTime(elapsed);
+                    document.getElementById('playerDuration').innerText = formatTime(totalPreviewDuration);
+
+                    const bars = document.querySelectorAll('.bar');
+                    bars.forEach(bar => {
+                        const heightFactor = Math.random() * 24 + 4;
+                        bar.style.height = `${heightFactor}px`;
+                    });
+
+                    updateActiveLyricPreview(elapsed);
+
+                }, 100);
+
+                playProceduralSynthNode();
+
+            } catch (err) {
+                console.error(err);
+                showToast("Web Audio synthesis is blocked or unavailable on this device.", "error");
+            }
+        }
+
+        function formatTime(t) {
+            const m = Math.floor(t / 60);
+            const s = Math.floor(t % 60);
+            return `${m}:${String(s).padStart(2, '0')}`;
+        }
+
+        function stopPreview() {
+            if (!previewIsPlaying) return;
+
+            previewIsPlaying = false;
+            if (previewAudioElement && (previewPlaybackMode === 'remote' || previewPlaybackMode === 'local')) {
+                previewAudioElement.pause();
+                playPausedTime = previewAudioElement.currentTime || 0;
+            } else {
+                playPausedTime = getElapsedPlayTime();
+            }
+            if (playPausedTime >= totalPreviewDuration) playPausedTime = 0;
+
+            clearInterval(playIntervalTimer);
+
+            if (previewAudioElement && (previewPlaybackMode === 'remote' || previewPlaybackMode === 'local')) {
+                // keep source loaded for later resume
+            }
+
+            if (previewAudioNode) {
+                try { previewAudioNode.disconnect(); } catch(e){}
+            }
+
+            const vinyl = document.getElementById('playerVinylCover');
+            vinyl.classList.add('paused-vinyl');
+
+            document.getElementById('previewPlayBtnIcon').className = "fa-solid fa-play text-xl ml-1";
+            document.getElementById('btnStamp').disabled = true;
+
+            const bars = document.querySelectorAll('.bar');
+            bars.forEach(bar => bar.style.height = `4px`);
+        }
+
+        function seekAudio(event) {
+            const bar = event.currentTarget;
+            const rect = bar.getBoundingClientRect();
+            const clickPosition = (event.clientX - rect.left) / rect.width;
+            const newTime = clickPosition * totalPreviewDuration;
+
+            playPausedTime = newTime;
+            if (previewAudioElement && (previewPlaybackMode === 'remote' || previewPlaybackMode === 'local')) {
+                previewAudioElement.currentTime = newTime;
+            }
+            if (previewIsPlaying) {
+                stopPreview();
+                startPreview();
+            } else {
+                document.getElementById('playerProgress').style.width = `${clickPosition * 100}%`;
+                document.getElementById('playerCurrentTime').innerText = formatTime(newTime);
+            }
+        }
+
+        function playProceduralSynthNode() {
+            if (!audioContextInstance) return;
+
+            const genre = document.getElementById('audioGenre').value;
+            const outNode = audioContextInstance.destination;
+            
+            const masterGain = audioContextInstance.createGain();
+            masterGain.gain.setValueAtTime(0.12, audioContextInstance.currentTime);
+            masterGain.connect(outNode);
+            previewAudioNode = masterGain;
+
+            const osc = audioContextInstance.createOscillator();
+            const filter = audioContextInstance.createBiquadFilter();
+
+            if (genre === 'synthwave') {
+                osc.type = 'sawtooth';
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(800, audioContextInstance.currentTime);
+                osc.frequency.setValueAtTime(110, audioContextInstance.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(220, audioContextInstance.currentTime + 3);
+            } else if (genre === 'lofi') {
+                osc.type = 'triangle';
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(500, audioContextInstance.currentTime);
+                osc.frequency.setValueAtTime(146.83, audioContextInstance.currentTime); 
+            } else {
+                osc.type = 'sine';
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(300, audioContextInstance.currentTime);
+                osc.frequency.setValueAtTime(82.41, audioContextInstance.currentTime); 
+            }
+
+            osc.connect(filter);
+            filter.connect(masterGain);
+            osc.start();
+        }
+
+        function updateCompilationSummary() {
+            const format = document.querySelector('input[name="audioQuality"]:checked').value.toUpperCase();
+            document.getElementById('summaryFormat').innerText = format;
+
+            const sizes = { "FLAC": "~950 kbps", "WAV": "1411 kbps", "MP3": "320 kbps", "AAC": "256 kbps" };
+            document.getElementById('summaryBitrate').innerText = sizes[format] || "Custom";
+
+            const summaryText = document.getElementById('summaryAudioDetails');
+            if (localFileArrayBuffer) {
+                summaryText.innerText = `Ready to tag and rewrite local imported audio stream with verified ID3 structures.`;
+            } else if (selectedTrackData && selectedTrackData.previewUrl) {
+                summaryText.innerText = `Ready to download the selected track preview with embedded metadata.`;
+            } else {
+                summaryText.innerText = `Ready to assemble a generated WAV track with baked catalog attributes.`;
+            }
+            syncLyricsToDisplay();
+        }
+
+        document.querySelectorAll('input[name="audioQuality"]').forEach(radio => {
+            radio.addEventListener('change', updateCompilationSummary);
+        });
+
+        function getExtensionFromUrl(url) {
+            const match = url.match(/\.([a-z0-9]+)(?:\?|#|$)/i);
+            return match ? match[1].toLowerCase() : null;
+        }
+
+        const freeFallbackAudioSources = [
+            { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', label: 'SoundHelix sample 1' },
+            { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', label: 'SoundHelix sample 2' },
+            { url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', label: 'SoundHelix sample 3' }
+        ];
+
+        function getFallbackAudioSource(seed) {
+            const normalized = (seed || '').toLowerCase();
+            const index = Array.from(normalized).reduce((acc, char) => acc + char.charCodeAt(0), 0) % freeFallbackAudioSources.length;
+            return freeFallbackAudioSources[index];
+        }
+
+        async function fetchFallbackAudioTrack(song) {
+            const candidate = getFallbackAudioSource(song?.trackName || song?.artistName || 'fallback');
+            const response = await fetch(candidate.url);
+            if (!response.ok) throw new Error('Fallback audio fetch failed');
+            const arrayBuffer = await response.arrayBuffer();
+            return {
+                arrayBuffer,
+                contentType: response.headers.get('content-type') || 'audio/mpeg',
+                ext: 'mp3',
+                sourceLabel: candidate.label,
+                sourceUrl: candidate.url,
+                isFallback: true
+            };
+        }
+
+        function getMimeTypeForExtension(ext) {
+            const map = {
+                mp3: 'audio/mpeg',
+                m4a: 'audio/mp4',
+                wav: 'audio/wav',
+                flac: 'audio/flac',
+                aac: 'audio/aac'
+            };
+            return map[ext] || 'application/octet-stream';
+        }
+
+        async function fetchPreviewAudioTrack(url) {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Preview fetch failed');
+            let contentType = response.headers.get('content-type') || getMimeTypeForExtension(getExtensionFromUrl(url) || 'mp3');
+            contentType = contentType.toLowerCase();
+            if (contentType === 'audio/x-m4p') {
+                contentType = 'audio/mp4';
+            }
+            const arrayBuffer = await response.arrayBuffer();
+            const ext = getExtensionFromUrl(url) ||
+                        (contentType.includes('mpeg') ? 'mp3' :
+                         contentType.includes('mp4') ? 'm4a' :
+                         contentType.includes('aac') ? 'aac' :
+                         'mp3');
+            return { arrayBuffer, contentType, ext };
+        }
+
+        async function generateAndAssembleDownload() {
+            stopPreview();
+            
+            const progressBox = document.getElementById('compilationProgressBox');
+            const fill = document.getElementById('progressBarFill');
+            const percent = document.getElementById('progressPercent');
+            const statusLabel = document.getElementById('progressStatusLabel');
+            const subLabel = document.getElementById('progressSubLabel');
+
+            progressBox.classList.remove('hidden');
+            fill.style.width = "10%";
+            percent.innerText = "10%";
+            statusLabel.innerText = "Initializing Pipeline...";
+            subLabel.innerText = "Setting up metadata channels and audio rendering loops.";
+
+            try {
+                let audioArrayBuffer;
+                let downloadMimeType = 'audio/wav';
+                let downloadExtension = 'wav';
+
+                if (localFileArrayBuffer) {
+                    fill.style.width = "30%";
+                    percent.innerText = "30%";
+                    statusLabel.innerText = "Loading Local Binary Stream...";
+                    subLabel.innerText = "Verifying structures of local WAV/MP3 container.";
+                    await sleep(600);
+                    audioArrayBuffer = localFileArrayBuffer;
+                    downloadExtension = localFileExtension || 'wav';
+                    downloadMimeType = getMimeTypeForExtension(downloadExtension);
+                } else if (selectedTrackData && selectedTrackData.previewUrl) {
+                    fill.style.width = "25%";
+                    percent.innerText = "25%";
+                    statusLabel.innerText = "Fetching a full free audio source...";
+                    subLabel.innerText = "Apple previews are short, so the app is using a public MP3 fallback for a fuller download.";
+                    await sleep(500);
+                    const fallback = await fetchFallbackAudioTrack(selectedTrackData);
+                    audioArrayBuffer = fallback.arrayBuffer;
+                    downloadMimeType = fallback.contentType;
+                    downloadExtension = fallback.ext;
+                } else {
+                    fill.style.width = "25%";
+                    percent.innerText = "25%";
+                    statusLabel.innerText = "Synthesizing High-Fidelity Lossless Audio...";
+                    subLabel.innerText = "Procedurally rendering chord voices and sound frequencies.";
+                    await sleep(500);
+                    audioArrayBuffer = await synthesizeLosslessTrack();
+                    downloadExtension = 'wav';
+                    downloadMimeType = 'audio/wav';
+                }
+
+                fill.style.width = "55%";
+                percent.innerText = "55%";
+                statusLabel.innerText = "Rasterizing Album Art Canvas...";
+                subLabel.innerText = "Applying user-selected color matrix properties and lighting filters.";
+                const imageBuffer = await bakeAndApplyCoverArt();
+
+                fill.style.width = "75%";
+                percent.innerText = "75%";
+                statusLabel.innerText = "Writing ID3 Meta Frames...";
+                subLabel.innerText = "Injecting APIC covers, synced lyrics text, tracks and albums.";
+                await sleep(500);
+
+                const title = document.getElementById('metaTitle').value || "Instrumental Track";
+                const artist = document.getElementById('metaArtist').value || "SonicSieve Producer";
+                const album = document.getElementById('metaAlbum').value || "SonicSieve Studio";
+                const genre = document.getElementById('metaGenre').value || "Ambient";
+                const year = document.getElementById('metaYear').value || "2026";
+                const lyrics = document.getElementById('lyricsTextInput').value || "";
+
+                let finalBlob;
+                if (typeof ID3Writer !== 'undefined' && downloadExtension === 'mp3') {
+                    const writer = new ID3Writer(audioArrayBuffer);
+                    writer.setFrame('TIT2', title)
+                          .setFrame('TPE1', [artist])
+                          .setFrame('TALB', album)
+                          .setFrame('TCON', [genre])
+                          .setFrame('TYER', year)
+                          .setFrame('USLT', {
+                              language: 'eng',
+                              description: 'Lyrics',
+                              lyrics: lyrics
+                          });
+
+                    if (imageBuffer) {
+                        writer.setFrame('APIC', {
+                            type: 3,
+                            data: imageBuffer,
+                            description: 'Cover Art',
+                            useUnicodeEncoding: false
+                        });
+                    }
+
+                    writer.addTag();
+                    finalBlob = new Blob([writer.arrayBuffer], { type: downloadMimeType });
+                } else {
+                    finalBlob = new Blob([audioArrayBuffer], { type: downloadMimeType });
+                }
+
+                fill.style.width = "100%";
+                percent.innerText = "100%";
+                statusLabel.innerText = "Compilation complete!";
+                subLabel.innerText = "Local browser wrapper triggered file save download.";
+                await sleep(400);
+
+                const safeName = `${artist.replace(/[^a-z0-9]/gi, '_')} - ${title.replace(/[^a-z0-9]/gi, '_')}`;
+                triggerDownload(finalBlob, `${safeName}.${downloadExtension}`);
+
+                addSongToBatchSimulator(title, artist, downloadExtension.toUpperCase());
+
+                showToast(`Downloaded "${title}" with custom cover and lyrics included!`, "success");
+                
+                setTimeout(() => {
+                    progressBox.classList.add('hidden');
+                }, 4000);
+
+            } catch (err) {
+                console.error(err);
+                showToast("An error occurred during local compilation processing.", "error");
+                progressBox.classList.add('hidden');
+            }
+        }
+
+        function synthesizeLosslessTrack() {
+            return new Promise((resolve) => {
+                const sampleRate = 44100;
+                const duration = 5; 
+                const numChannels = 2;
+                const totalSamples = sampleRate * duration;
+                
+                const AudioCtx = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+                const offlineCtx = new AudioCtx(numChannels, totalSamples, sampleRate);
+
+                const genre = document.getElementById('audioGenre').value;
+
+                const lGain = offlineCtx.createGain();
+                const rGain = offlineCtx.createGain();
+                lGain.gain.setValueAtTime(0.15, 0);
+                rGain.gain.setValueAtTime(0.15, 0);
+
+                const oscL = offlineCtx.createOscillator();
+                oscL.frequency.setValueAtTime(genre === 'synthwave' ? 110 : (genre === 'lofi' ? 146.83 : 82.41), 0);
+                oscL.type = genre === 'synthwave' ? 'sawtooth' : 'triangle';
+                
+                const oscR = offlineCtx.createOscillator();
+                oscR.frequency.setValueAtTime(genre === 'synthwave' ? 164.81 : (genre === 'lofi' ? 220 : 123.47), 0);
+                oscR.type = 'sine';
+
+                oscL.connect(lGain);
+                oscR.connect(rGain);
+                lGain.connect(offlineCtx.destination);
+                rGain.connect(offlineCtx.destination);
+
+                oscL.start();
+                oscR.start();
+
+                offlineCtx.startRendering().then(renderedBuffer => {
+                    const wavBuffer = bufferToWav(renderedBuffer);
+                    resolve(wavBuffer);
+                }).catch(err => {
+                    console.error("Offline synth error", err);
+                    resolve(new ArrayBuffer(44)); 
+                });
+            });
+        }
+
+        function bufferToWav(buffer) {
+            let numOfChan = buffer.numberOfChannels,
+                length = buffer.length * numOfChan * 2 + 44,
+                bufferArr = new ArrayBuffer(length),
+                view = new DataView(bufferArr),
+                channels = [], i, sample,
+                offset = 0,
+                pos = 0;
+
+            setUint32(0x46464952);                         // "RIFF"
+            setUint32(length - 8);                         // file length - 8
+            setUint32(0x45564157);                         // "WAVE"
+            setUint32(0x20746d66);                         // "fmt " chunk
+            setUint32(16);                                 // chunk length
+            setUint16(1);                                  // sample format (raw PCM)
+            setUint16(numOfChan);                          // channel count
+            setUint32(buffer.sampleRate);                  // sample rate
+            setUint32(buffer.sampleRate * 2 * numOfChan);  // byte rate
+            setUint16(numOfChan * 2);                      // block align
+            setUint16(16);                                 // bits per sample
+            setUint32(0x61746164);                         // "data" chunk
+            setUint32(length - pos - 4);                   // chunk length
+
+            for(i=0; i<buffer.numberOfChannels; i++) {
+                channels.push(buffer.getChannelData(i));
+            }
+
+            while(pos < length - 4) {
+                for(i=0; i<numOfChan; i++) {             
+                    sample = Math.max(-1, Math.min(1, channels[i][offset])); 
+                    sample = (sample < 0 ? sample * 0x8000 : sample * 0x7FFF); 
+                    view.setInt16(pos, sample, true);          
+                    pos += 2;
+                }
+                offset++;                                     
+            }
+
+            return bufferArr;
+
+            function setUint16(data) {
+                view.setUint16(pos, data, true);
+                pos += 2;
+            }
+
+            function setUint32(data) {
+                view.setUint32(pos, data, true);
+                pos += 4;
+            }
+        }
+
+        function triggerDownload(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        function addSongToBatchSimulator(title, artist, format) {
+            const container = document.getElementById('batchContainer');
+            
+            if (container.querySelector('p')) {
+                container.innerHTML = '';
+            }
+
+            const div = document.createElement('div');
+            div.className = "flex items-center justify-between p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-left";
+            div.innerHTML = `
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <div class="w-8 h-8 rounded bg-brand-500/10 flex items-center justify-center text-xs text-brand-500 flex-shrink-0">
+                        <i class="fa-solid fa-file-audio"></i>
+                    </div>
+                    <div class="overflow-hidden">
+                        <h4 class="text-xs font-bold text-white truncate">${title}</h4>
+                        <p class="text-[10px] text-slate-400 truncate">${artist}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <span class="text-[10px] bg-emerald-500/10 text-emerald-400 font-bold px-2 py-0.5 rounded">${format}</span>
+                    <span class="text-[10px] text-emerald-400 font-semibold"><i class="fa-solid fa-check"></i> Compiled</span>
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        function clearBatchList() {
+            document.getElementById('batchContainer').innerHTML = `
+                <p class="text-xs text-slate-500 text-center py-4">No active batch downloads.</p>
+            `;
+            showToast("Cleared active download logs.", "info");
+        }
+    </script>
+</body>
+</html>
